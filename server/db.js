@@ -1,8 +1,8 @@
-const Database = require('better-sqlite3');
+const { DatabaseSync } = require('node:sqlite');
 const path = require('path');
 
-const db = new Database(path.join(__dirname, 'telecare.db'));
-db.pragma('journal_mode = WAL');
+const db = new DatabaseSync(path.join(__dirname, 'telecare.db'));
+db.exec('PRAGMA journal_mode = WAL');
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (
@@ -71,13 +71,12 @@ if (providerCount === 0) {
 
   const insertSlot = db.prepare('INSERT INTO slots (provider_id, start_time, is_priority) VALUES (?, ?, ?)');
   const now = new Date();
-  providerIds.forEach((pid, pIdx) => {
+  providerIds.forEach((pid) => {
     for (let day = 0; day < 3; day++) {
       for (let hour of [9, 11, 13, 15, 17]) {
         const slotTime = new Date(now);
         slotTime.setDate(now.getDate() + day + 1);
         slotTime.setHours(hour, 0, 0, 0);
-        // Every other slot is a "priority" (member-only early access) slot
         const isPriority = hour === 9 || hour === 17 ? 1 : 0;
         insertSlot.run(pid, slotTime.toISOString(), isPriority);
       }
@@ -85,8 +84,7 @@ if (providerCount === 0) {
   });
 }
 
-// Seed a demo provider login (provider role users are separate from the `providers` table,
-// which just models the clinicians patients book with)
+// Seed a demo provider login
 const demoProviderCount = db.prepare("SELECT COUNT(*) as c FROM users WHERE role = 'provider'").get().c;
 if (demoProviderCount === 0) {
   const bcrypt = require('bcryptjs');

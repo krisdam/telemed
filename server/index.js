@@ -141,17 +141,22 @@ app.post('/api/appointments', auth, (req, res) => {
     usedIncludedVisit = true;
   }
 
-  const bookTxn = db.transaction(() => {
+  let info;
+  db.exec('BEGIN');
+  try {
     db.prepare('UPDATE slots SET is_booked = 1 WHERE id = ?').run(slot_id);
     if (usedIncludedVisit) {
       db.prepare('UPDATE users SET visits_remaining = visits_remaining - 1 WHERE id = ?').run(req.user.id);
     }
-    return db.prepare(
+    info = db.prepare(
       'INSERT INTO appointments (patient_id, provider_id, slot_id, intake_id, price_charged_cents) VALUES (?, ?, ?, ?, ?)'
     ).run(req.user.id, slot.provider_id, slot_id, intake_id, priceCharged);
-  });
+    db.exec('COMMIT');
+  } catch (e) {
+    db.exec('ROLLBACK');
+    throw e;
+  }
 
-  const info = bookTxn();
   const appointment = getAppointmentDetail(info.lastInsertRowid);
   res.json({ appointment });
 });
